@@ -1,54 +1,42 @@
-require('dotenv').config();
-const fetch = require('node-fetch');
 const fs = require('fs');
 const path = require('path');
 
-async function testBase64Upload(filePath) {
-  try {
-    // Get file path, prioritize command line arguments, otherwise use default value
-    const imagePath = filePath || path.join(__dirname, 'upic.png');
-    
-    // Check if file exists
-    if (!fs.existsSync(imagePath)) {
-      throw new Error(`File not found: ${imagePath}`);
-    }
-    
-    console.log(`Uploading file: ${imagePath}`);
-    const testImageData = fs.readFileSync(imagePath).toString('base64');
-    
-    const response = await fetch('http://localhost:8889/api/upload', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.TOKEN}`
-      },
-      body: JSON.stringify({
-        file: testImageData,
-        fileName: path.basename(imagePath)
-      })
-    });
-    
-    if (response.ok) {
-      const result = await response.json();
-      console.log('Base64 upload successful:', result);
-    } else {
-      console.error('Base64 upload failed:', response.status, await response.text());
-    }
-    
-  } catch (error) {
-    console.error('Test failed:', error.message);
+const UPLOAD_URL = process.env.UPLOAD_URL || 'http://localhost:8787/api/upload';
+const TOKEN = process.env.TOKEN;
+
+async function main() {
+  if (!TOKEN) {
+    console.error('TOKEN env var required. Usage: TOKEN=xxx node test-upload.js [path/to/image]');
+    process.exit(1);
   }
+
+  const imagePath = process.argv[2] || path.join(__dirname, 'upic.png');
+  if (!fs.existsSync(imagePath)) {
+    console.error(`File not found: ${imagePath}`);
+    process.exit(1);
+  }
+
+  console.log(`Uploading ${imagePath} to ${UPLOAD_URL}`);
+  const file = fs.readFileSync(imagePath).toString('base64');
+
+  const response = await fetch(UPLOAD_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${TOKEN}`,
+    },
+    body: JSON.stringify({ file, fileName: path.basename(imagePath) }),
+  });
+
+  const text = await response.text();
+  if (!response.ok) {
+    console.error(`Upload failed (${response.status}): ${text}`);
+    process.exit(1);
+  }
+  console.log('Success:', text);
 }
 
-// Get command line arguments
-const args = process.argv.slice(2);
-const filePath = args[0];
-
-console.log('Testing new base64 upload API...');
-if (filePath) {
-  console.log(`Using file from command line: ${filePath}`);
-} else {
-  console.log('No file specified, using default: upic.png');
-}
-
-testBase64Upload(filePath);
+main().catch((err) => {
+  console.error('Test failed:', err);
+  process.exit(1);
+});

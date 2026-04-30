@@ -1,0 +1,12 @@
+name = "pic-sorrycc-com"
+main = "src/index.js"
+compatibility_date = "2026-04-01"
+
+[vars]
+GITHUB_OWNER  = "sorrycc-bot"
+GITHUB_REPO   = "image-2025-08"
+GITHUB_BRANCH = "main"
+
+[[routes]]
+pattern = "pic.sorrycc.com"
+custom_domain = true
