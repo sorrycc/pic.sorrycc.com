@@ -49,9 +49,12 @@ async function handleUpload(request, env) {
     return jsonError(400, 'Missing file or fileName');
   }
 
+  // Tolerate a data-URL prefix and any whitespace/newlines some clients add,
+  // matching the old Buffer.from(..., 'base64') leniency.
+  const cleaned = file.replace(/^data:[^,]*;base64,/, '').replace(/\s+/g, '');
   let bytes;
   try {
-    bytes = atob(file);
+    bytes = atob(cleaned);
   } catch {
     return jsonError(400, 'Invalid base64 data');
   }
@@ -75,7 +78,7 @@ async function handleUpload(request, env) {
       },
       body: JSON.stringify({
         message: `Upload ${generated}`,
-        content: file,
+        content: cleaned,
         branch: env.GITHUB_BRANCH,
       }),
     });
@@ -87,7 +90,9 @@ async function handleUpload(request, env) {
   if (!upstream.ok) {
     const snippet = (await upstream.text()).slice(0, 500);
     console.error(`GitHub upload ${upstream.status}:`, snippet);
-    return jsonError(502, 'GitHub upload failed');
+    // Surface the upstream status so a broken/expired GITHUB_TOKEN (401/403)
+    // is obvious to the client instead of a generic, undiagnosable 502.
+    return jsonError(502, `GitHub upload failed (${upstream.status})`);
   }
 
   return Response.json({ data: SITE_PREFIX + generated });

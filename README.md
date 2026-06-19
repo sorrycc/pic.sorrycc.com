@@ -2,21 +2,21 @@
 
 Single-file Cloudflare Worker that uploads images to a GitHub repo and serves them back through `pic.sorrycc.com`, edge-cached.
 
-- `POST /api/upload` — bearer-auth, accepts `{ file: <base64>, fileName }`, commits to `github.com/sorrycc/pic.sorrycc.com`, returns `{ data: "https://pic.sorrycc.com/<unique>.<ext>" }`.
+- `POST /api/upload` — bearer-auth, accepts `{ file: <base64>, fileName }`, commits to `github.com/sorrycc-bot/image-2025-08`, returns `{ data: "https://pic.sorrycc.com/<unique>.<ext>" }`.
 - `GET /<filename>` — proxies `raw.githubusercontent.com`, cached at the edge for one year. Strict filename whitelist (PNG/JPG/GIF/WEBP/SVG only).
 
 ## Configuration
 
 Non-secret config lives in `wrangler.toml`:
 
-- `GITHUB_OWNER` — `sorrycc`
-- `GITHUB_REPO` — `pic.sorrycc.com`
-- `GITHUB_BRANCH` — `master`
+- `GITHUB_OWNER` — `sorrycc-bot`
+- `GITHUB_REPO` — `image-2025-08`
+- `GITHUB_BRANCH` — `main`
 
 Secrets are stored via `wrangler secret put`:
 
 - `TOKEN` — bearer token clients send to `/api/upload`
-- `GITHUB_TOKEN` — GitHub PAT with `contents:write` on the storage repo
+- `GITHUB_TOKEN` — GitHub PAT with `contents:write` on the storage repo. **This token expires; when uploads start returning `502 GitHub upload failed (401)`, regenerate the PAT and re-run `wrangler secret put GITHUB_TOKEN`.**
 
 For local development, copy `.dev.vars.example` to `.dev.vars` and fill in `TOKEN` and `GITHUB_TOKEN`. `.dev.vars` is gitignored.
 
@@ -37,22 +37,16 @@ TOKEN=<your token> node test-upload.js path/to/file.png
 
 ## Deploy
 
-The `pic.sorrycc.com` zone is not yet in this Cloudflare account. Deploy in two stages:
-
-**Stage 1 — workers.dev only (works today):**
+The `pic.sorrycc.com` custom domain is already bound (see the `[[routes]]` block in `wrangler.toml`). To ship changes:
 
 ```bash
 wrangler login                          # refresh expired oauth
-wrangler secret put TOKEN               # paste the bearer token
-wrangler secret put GITHUB_TOKEN        # paste the GitHub PAT
-wrangler deploy                         # ships to pic-sorrycc-com.<account>.workers.dev
+wrangler secret put TOKEN               # only if rotating the client bearer token
+wrangler secret put GITHUB_TOKEN        # only if rotating the GitHub PAT
+wrangler deploy                         # ships to pic.sorrycc.com
 ```
 
-**Stage 2 — custom domain (after zone transfer):**
-
-1. Add `sorrycc.com` to the Cloudflare account (registrar nameserver change).
-2. Uncomment the `[[routes]]` block in `wrangler.toml`.
-3. `wrangler deploy` again — the route binds `pic.sorrycc.com/*` to the Worker.
+Secrets persist across deploys, so a plain `wrangler deploy` is enough for code-only changes.
 
 ## Limits
 
